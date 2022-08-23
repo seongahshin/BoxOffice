@@ -16,6 +16,9 @@ class ViewController: UIViewController {
     let localRealm = try! Realm()
     var tasks: Results<BoxOffice>!
     var movieList: [String] = []
+    var movieRateList: [Int] = []
+    
+    
     
     
     let tableView: UITableView = {
@@ -45,63 +48,67 @@ class ViewController: UIViewController {
         } else {
             count()
         }
-        tasks = localRealm.objects(BoxOffice.self).sorted(byKeyPath: "movieTitle", ascending: false)
+        tasks = localRealm.objects(BoxOffice.self).sorted(byKeyPath: "movieRate", ascending: true)
         tableView.reloadData()
     }
     
     
     
     func callRequest() {
-        print(#function)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd"
-        let date = Date(timeInterval: -(60*60*24), since: Date())
-        let current_date_string = formatter.string(from: date)
-        
-        let url = "\(EndPoint.MovieURL)key=\(APIKey.MovieAPIKey)&targetDt=\(current_date_string)"
-        print(url)
-        AF.request(url, method: .get).validate().responseData { [self] response in
-            switch response.result {
-                    case .success(let value):
+            print(#function)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd"
+            let date = Date(timeInterval: -(60*60*24), since: Date())
+            let current_date_string = formatter.string(from: date)
 
-                        let json = JSON(value)
-                        print("JSON: \(json)")
-                
-                        if UserDefaults.standard.bool(forKey: "launchBefore") == false {
-                            for num in 0...json["boxOfficeResult"]["dailyBoxOfficeList"].count - 1 {
-                            movieList.append(json["boxOfficeResult"]["dailyBoxOfficeList"][num]["movieNm"].stringValue)
+            let url = "\(EndPoint.MovieURL)key=\(APIKey.MovieAPIKey)&targetDt=\(current_date_string)"
+            print(url)
+            AF.request(url, method: .get).validate().responseData { [self] response in
+                switch response.result {
+                        case .success(let value):
+
+                            let json = JSON(value)
+                            print("JSON: \(json)")
+
+                            if UserDefaults.standard.bool(forKey: "launchBefore") == false {
+                                for num in 0...json["boxOfficeResult"]["dailyBoxOfficeList"].count - 1 {
+                                    movieList.append(json["boxOfficeResult"]["dailyBoxOfficeList"][num]["movieNm"].stringValue)
+
+                                    movieRateList.append(json["boxOfficeResult"]["dailyBoxOfficeList"][num]["rank"].intValue)
+                                }
+
+                            print(movieList)
+                            UserDefaults.standard.set(movieList, forKey: "movieList")
+                            UserDefaults.standard.set(movieRateList, forKey: "movieRateList")
+                            count()
+
+                            }
+
+                        case .failure(let error):
+                            print(error)
                         }
-            
-                        print(movieList)
-                        UserDefaults.standard.set(movieList, forKey: "movieList")
-                        count()
-                    
-                        }
-                        
-                    case .failure(let error):
-                        print(error)
-                    }
-                        
-                
-                        
-                    
+
+
+
+
+                }
             }
-        }
     
     func count() {
         print(#function)
-        guard let boxOfficeList = UserDefaults.standard.array(forKey: "movieList") else { return }
-        print("list \(boxOfficeList)")
+        guard let boxOfficeList = UserDefaults.standard.array(forKey:"movieList") else { return }
+        guard let boxOfficeRateList = UserDefaults.standard.array(forKey: "movieRateList" ) else { return }
+        
+        
         if UserDefaults.standard.bool(forKey: "launchBefore") == false {
+            
             for num in 0...boxOfficeList.count - 1 {
-                let task = BoxOffice(movieTitle: boxOfficeList[num] as! String)
+                let task = BoxOffice(movieTitle: boxOfficeList[num] as! String, movieRate: boxOfficeRateList[num] as! Int)
                 try! localRealm.write {
                     localRealm.add(task)
                 }
-                print("task \(task)")
-                print(tasks!)
-
             }
+            
             tableView.reloadData()
         }
         UserDefaults.standard.set(true, forKey: "launchBefore")
